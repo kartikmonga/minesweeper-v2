@@ -7,6 +7,7 @@ let cells = [];
 let gameEnded = false;
 let timer, timeLeft = 0;
 let focusedIndex = 0;
+let hasShuffled = false; // <-- ADD THIS at the top
 
 // 🎵 Sound Effects
 const clickSound = new Audio('click.mp3');
@@ -87,6 +88,29 @@ function startGame(level = 1) {
   startLevelTimer(level);
 }
 
+// shuffle mines
+function shuffleMines() {
+  // Remove the current mines
+  cells.forEach(cell => {
+    cell.mine = false;
+    updateCellDisplay(cell.index); // Make sure mines are visually reset
+  });
+
+  // Randomly reassign mines
+  const totalCells = gridSize * gridSize;
+  const indices = [...Array(totalCells).keys()];
+  for (let m = 0; m < mineCount; m++) {
+    const i = Math.floor(Math.random() * indices.length);
+    const index = indices.splice(i, 1)[0];
+    cells[index].mine = true;
+  }
+
+  // Recalculate neighbor mines after shuffle
+  calculateNeighborMines();
+}
+
+
+
 function placeMines(totalCells) {
   const indices = [...Array(totalCells).keys()];
   for (let m = 0; m < mineCount; m++) {
@@ -104,24 +128,72 @@ function calculateNeighborMines() {
 }
 
 function applyLevelTwists() {
-  if (currentLevel >= 50) {
+  // Reset any previous twists
+  cells.forEach(cell => {
+    cell.el.classList.remove('hidden-cell', 'bonus');
+    cell.bonus = false;
+  });
+
+  // Determine twist parameters based on current level
+  let hiddenCellChance = 0;
+  let bonusCount = 0;
+
+  if (currentLevel >= 50 && currentLevel < 100) {
+    hiddenCellChance = 0.05;
+  } else if (currentLevel >= 100 && currentLevel < 150) {
+    hiddenCellChance = 0.05;
+    bonusCount = Math.floor(gridSize / 2);
+  } else if (currentLevel >= 150 && currentLevel < 200) {
+    hiddenCellChance = 0.1;
+    bonusCount = Math.floor(gridSize / 2);
+  } else if (currentLevel === 200) {
+    hiddenCellChance = 0.1;
+    bonusCount = Math.floor(gridSize / 1.5);
+  }
+
+  // Apply hidden cells
+  if (hiddenCellChance > 0) {
     cells.forEach(cell => {
-      if (Math.random() < 0.05) cell.el.classList.add('hidden-cell');
+      if (Math.random() < hiddenCellChance) {
+        cell.el.classList.add('hidden-cell');
+      }
     });
   }
 
-  if (currentLevel >= 125) {
-    let bonuses = Math.floor(gridSize / 2);
-    for (let i = 0; i < bonuses; i++) {
-      const candidates = cells.filter(c => !c.mine && !c.bonus);
-      const randomCell = candidates[Math.floor(Math.random() * candidates.length)];
-      if (randomCell) {
-        randomCell.bonus = true;
-        randomCell.el.classList.add('bonus');
-      }
+  // Apply bonus cells
+  if (bonusCount > 0) {
+    let candidates = cells.filter(c => !c.mine && !c.bonus);
+    for (let i = 0; i < bonusCount && candidates.length > 0; i++) {
+      const randomIndex = Math.floor(Math.random() * candidates.length);
+      const randomCell = candidates.splice(randomIndex, 1)[0];
+      randomCell.bonus = true;
+      randomCell.el.classList.add('bonus');
     }
   }
 }
+
+// level
+function checkLevelCompletion() {
+  if (gameEnded) return false;
+
+  const allSafeRevealed = cells.every(cell => cell.mine || cell.revealed);
+  const allBonusesCollected = cells.every(cell => !cell.bonus || cell.revealed);
+
+  if (currentLevel < 50) {
+    return allSafeRevealed;
+  } else if (currentLevel < 100) {
+    return allSafeRevealed;
+  } else if (currentLevel < 150) {
+    return allSafeRevealed && allBonusesCollected;
+  } else if (currentLevel < 200) {
+    return allSafeRevealed && allBonusesCollected;
+  } else if (currentLevel === 200) {
+    return allSafeRevealed && allBonusesCollected;
+  }
+
+  return false;
+}
+
 
 function handleCellClick(e) {
   const index = parseInt(e.currentTarget.dataset.index);
@@ -215,19 +287,22 @@ function autoRevealNeighbors(index) {
 
 function checkWinCondition() {
   if (gameEnded) return;
-  const allSafeRevealed = cells.every(cell => cell.mine || cell.revealed);
-  if (allSafeRevealed) {
+
+  if (checkLevelCompletion()) {
     gameEnded = true;
     clearInterval(timer);
     victorySound.play();
+
     if (currentLevel >= 200) {
       showModal('🎉 Final Victory!', 'You completed all 200 levels!', true);
     } else {
       showModal(`Level ${currentLevel} Complete!`, '🎉 Well done!', true);
-      setTimeout(() => startGame(currentLevel + 1), 2500);
+      // Remove automatic level progression
+      // setTimeout(() => startGame(currentLevel + 1), 2500);
     }
   }
 }
+
 
 function showModal(title, message, isWin) {
   document.getElementById('gameModalLabel').textContent = title;
@@ -242,6 +317,7 @@ function showModal(title, message, isWin) {
   nextBtn.onclick = () => { modal.hide(); startGame(currentLevel + 1); };
 }
 
+// start level
 function startLevelTimer(level, displayId = 'timerDisplay') {
   timeLeft = 30;
   const timerDisplay = document.getElementById(displayId);
@@ -253,6 +329,13 @@ function startLevelTimer(level, displayId = 'timerDisplay') {
     if (gameEnded) return clearInterval(timer);
     timeLeft--;
     timerDisplay.textContent = `⏱️ ${timeLeft}s`;
+
+    if (timeLeft === 10 && !hasShuffled) {
+      timerDisplay.classList.add('blink');
+      shuffleMines(); // Automatically shuffle mines at 10s
+      hasShuffled = true;
+    }
+
     if (timeLeft <= 10) timerDisplay.classList.add('blink');
     if (timeLeft <= 0) {
       clearInterval(timer);
@@ -263,6 +346,9 @@ function startLevelTimer(level, displayId = 'timerDisplay') {
     }
   }, 1000);
 }
+
+
+
 
 function getNumberColor(number) {
   const colors = ['', '#00f', '#008200', '#f00', '#000080', '#800000', '#008080', '#000', '#808080'];
@@ -279,42 +365,65 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (gameEnded && e.key.toLowerCase() !== 'r') return;
+  if (!cells.length) return;
 
-  const row = Math.floor(focusedIndex / gridSize);
-  const col = focusedIndex % gridSize;
+  const key = e.key.toLowerCase();
+  const row = Math.floor(focusedIndex / gridSize);
+  const col = focusedIndex % gridSize;
+  let newIndex = focusedIndex;
 
-  let newIndex = focusedIndex;
+  // Handle controls when game is over
+  if (gameEnded) {
+    if (key === 'enter') {
+      startGame(currentLevel); // Restart current level
+    } else if (key === 'r') {
+      startGame(1); // Restart from level 1
+    }
+    return;
+  }
 
-  switch (e.key) {
-    case 'ArrowUp':
-      if (row > 0) newIndex -= gridSize;
-      break;
-    case 'ArrowDown':
-      if (row < gridSize - 1) newIndex += gridSize;
-      break;
-    case 'ArrowLeft':
-      if (col > 0) newIndex -= 1;
-      break;
-    case 'ArrowRight':
-      if (col < gridSize - 1) newIndex += 1;
-      break;
-    case 'Enter':
-    case ' ':
-      handleCellClick({ currentTarget: cells[focusedIndex].el });
-      break;
-    case 'f':
-    case 'F':
-      handleRightClick({ preventDefault: () => {}, currentTarget: cells[focusedIndex].el });
-      break;
-    case 'r':
-    case 'R':
-      startGame(1);
-      break;
-    default:
-      return;
-  }
+  // Movement logic  ksyboard controls
+  if (key === 'arrowup' && row > 0) {
+    newIndex -= gridSize;
+  } else if (key === 'arrowdown' && row < gridSize - 1) {
+    newIndex += gridSize;
+  } else if (key === 'arrowleft' && col > 0) {
+    newIndex -= 1;
+  } else if (key === 'arrowright' && col < gridSize - 1) {
+    newIndex += 1;
+  } else if (key === 'enter' || key === ' ') {
+    handleCellClick({ currentTarget: cells[focusedIndex].el });
+  } else if (key === 'f') {
+    handleRightClick({ preventDefault: () => {}, currentTarget: cells[focusedIndex].el });
+  } else if (key === 'r') {
+    startGame(1);
+  }
 
+  // Focus update
+  if (newIndex !== focusedIndex && newIndex >= 0 && newIndex < cells.length) {
+    cells[focusedIndex].el.classList.remove('focused');
+    focusedIndex = newIndex;
+    cells[focusedIndex].el.classList.add('focused');
+  }
+
+// modal controls
+document.addEventListener('keydown', (e) => {
+  const modal = document.getElementById('gameModal');
+  const isModalVisible = modal.classList.contains('show');
+  if (!isModalVisible) return;
+
+  const key = e.key.toLowerCase();
+  const restartBtn = document.getElementById('modalRestartBtn');
+  const nextBtn = document.getElementById('modalNextBtn');
+
+  if (key === 'enter' || key === 'r') {
+    restartBtn.click();
+  } else if (key === 'n' && !nextBtn.classList.contains('d-none')) {
+    nextBtn.click();
+  }
+});
+
+// 
   if (newIndex !== focusedIndex && newIndex >= 0 && newIndex < cells.length) {
     cells[focusedIndex].el.classList.remove('focused');
     focusedIndex = newIndex;
