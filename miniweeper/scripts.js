@@ -8,16 +8,42 @@ let gameEnded = false;
 let timer, timeLeft = 0;
 let focusedIndex = 0;
 let hasShuffled = false; // <-- ADD THIS at the top
+// Function to preload and buffer the audio
+function preloadAndBuffer(audio) {
+  // Set preload to 'auto' for initial loading
+  audio.preload = 'auto';
+  
+  // Listen for when the audio is fully buffered and can play without interruption
+  audio.addEventListener('canplaythrough', () => {
+    console.log(audio.src + ' is fully buffered and ready to play.');
+  });
+}
 
-// 🎵 Sound Effects
+// Initialize the audio objects and preload them
 const clickSound = new Audio('click.mp3');
+preloadAndBuffer(clickSound); // Preload and buffer click sound
+
 const bonusSound = new Audio('bonus.mp3');
+preloadAndBuffer(bonusSound); // Preload and buffer bonus sound
+
 const flagSound = new Audio('flag.mp3');
+preloadAndBuffer(flagSound); // Preload and buffer flag sound
+
 const bombSound = new Audio('BLAST SOUND.mp3');
+preloadAndBuffer(bombSound); // Preload and buffer bomb explosion sound
+
 const victorySound = new Audio('level-up-5.mp3');
+preloadAndBuffer(victorySound); // Preload and buffer victory sound
+
 const timeoutSound = new Audio('time-out.mp3');
+preloadAndBuffer(timeoutSound); // Preload and buffer timeout sound
+
 const levelStartSound = new Audio('game start.mp3');
+preloadAndBuffer(levelStartSound); // Preload and buffer game start sound
+
 const bgMusic = new Audio('bg.mp3');
+preloadAndBuffer(bgMusic); // Preload and buffer background music
+
 bgMusic.loop = true;
 bgMusic.volume = 0.5;
 
